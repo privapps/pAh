@@ -11,3 +11,14 @@ see [About](./html/md/about.md)
 * For server side [Server](./html/md/server.md)
 * For client side [Client](./html/md/web.md)
 * [How to use it](./html/md/apps.md)
+
+## How to run
+`docker run --dns 1.1.1.1 --rm -p 11100-11120:11100-11120 ghcr.io/privapps/pah:main`
+
+  * Port 11100 -> [httpd](https://pkgs.alpinelinux.org/package/edge/main/x86/busybox-extras)
+  * Port 11101 -> [piping-server](https://github.com/nwtgck/piping-server-rust)
+  * Port 11102 -> [reverse-ssh](https://github.com/Fahrj/reverse-ssh)
+  * Port 11103 -> [wstunnel](https://github.com/erebe/wstunnel)
+  * Port 11104 -> [tinyproxy](https://tinyproxy.github.io/)
+
+Use other ports for reverse port forwarding. Browser with port 11100 to view help and web apps.
