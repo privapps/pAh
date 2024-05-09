@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Zip Extract</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="js/minizip-asm.min.js"></script>
+    <script src="js/zip-ext.js"></script>
+    <link href="/css/picnic.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin-left: 10px;
+            font-size: small;
+        }
+    </style>
+
+</head>
+
+<body>
+    <h3>ZIP Compress / Extract</h3>
+    <div class="flex one">
+        <small>You can use any popular file archiver or compression utility to compress and extract ZIP files. This feature is for convenience, but it might not work in all browsers.</small>
+        <input type="text" id="html_password" placeholder="Password" style="width: 80%;">
+    </div>
+    <div class="flex two">
+        <div>
+            <label for="html_extract_input"><small>Multiple Files in the zip file will be extracted one by one</small>
+            <input type="file" id="html_extract_input"></label><br>
+        </div>
+        <div>
+            <button id="html_extract" onclick="handleExtract()">Extract</button>
+        </div>
+    </div>
+    <hr/>
+
+    <div class="flex two">
+        <div>
+            <label for="html_compress_input"><small>Multiple Files can add into the zip with password</small>
+            <input type="file" id="html_compress_input" multiple></label><br>
+            <!-- <label for="html_compress_password"><small>Password</small>
+            <input type="text" id="html_compress_password" value="1"></label> -->
+        </div>
+        <div>
+            <button id="html_compress" onclick="handleCompress()">Compress</button>
+        </div>
+    </div>
+    <script>
+        let out_files = []
+        async function handleExtract() {
+
+            const password = document.getElementById("html_password").value
+
+            const file = document.getElementById("html_extract_input").files[0]
+            if (null === file) return
+            html_extract.disable = true
+            new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                let resp = []
+                reader.onload = function(event) {
+                    // if file name end with zip
+                    if (file.name.endsWith('.zip')) {
+
+                        var zip = new Minizip(new Uint8Array(event.target.result));
+
+                        zip.list({
+                            encoding: "buffer"
+                        }).forEach(function(o) {
+                            try {
+                                uint8Array = zip.extract(o.filepath, {
+                                    password: password
+                                })
+                                out_files.push([new TextDecoder().decode(o.filepath), uint8Array])
+                                resolve()
+                            } catch (e) {
+                                alert('failed to extract ' + o.filepath + ' ' + e)
+                            }
+                        });
+                    }
+                }
+                reader.onerror = function(error) {
+                    reject(error);
+                };
+                reader.readAsArrayBuffer(file); // Use readAsArrayBuffer for binary data
+            }).then(() => {
+                out_files.forEach(f => {
+                    saveUint8ArrayToFile(f[1], f[0])
+                })
+                html_extract.disable = false
+            })
+        }
+
+        async function handleCompress() {
+            const password = document.getElementById("html_password").value
+            var fileInput = document.getElementById('html_compress_input');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                return
+            }
+            var file = fileInput.files[0];
+            html_compress.disabled = true
+            const zip_file = await compress_with_minizip_and_encrypt(fileInput.files, password, file.name + '.zip')
+            saveUint8ArrayToFile(zip_file, file.name + '.zip')
+            html_compress.disabled = false
+        }
+
+        function saveUint8ArrayToFile(uint8Array, filename) {
+            // Create a Blob from the Uint8Array
+            const blob = new Blob([uint8Array], {
+                type: 'application/octet-stream'
+            });
+
+            // Create a URL for the Blob
+            const url = URL.createObjectURL(blob);
+
+            // Create a temporary anchor element
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'file.bin'; // Default filename if not provided
+
+            // Programmatically trigger a click event on the anchor element to initiate download
+            a.click();
+
+            // Clean up by revoking the URL
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+
+</html>

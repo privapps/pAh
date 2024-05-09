@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help</title>
+    <link href="css/picnic.min.css" rel="stylesheet">
+    <script type="module" src="share/js/zero-md.min.js"></script>
+    <style>
+        body {
+            font-size: medium;
+        }
+        
+        zero-md {
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>What's inside</h2>
+    <table width="100%">
+        <tr>
+            <th>Server app</th>
+            <th>Web app</th>
+        </tr>
+        <tr>
+            <td>
+                <zero-md src="md/server.md"></zero-md>
+            </td>
+            <td>
+                <zero-md src="md/web.md"> </zero-md>
+            </td>
+        </tr>
+    </table>
+    <zero-md src="md/apps.md"></zero-md>
+    <br/>
+</body>
+
+</html>

@@ -1,0 +1,52 @@
+name: Build Docker
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: build
+      shell: bash
+      run: |
+        cd docker
+        wget https://github.com/nwtgck/piping-server-rust/releases/download/v0.17.0/piping-server-aarch64-unknown-linux-musl.tar.gz &
+        wget https://github.com/erebe/wstunnel/releases/download/v9.4.1/wstunnel_9.4.1_linux_arm64.tar.gz &
+        wget https://github.com/Fahrj/reverse-ssh/releases/download/v1.2.0/reverse-ssh-armv8-x64 &
+
+        wget https://github.com/nwtgck/piping-server-rust/releases/download/v0.17.0/piping-server-x86_64-unknown-linux-musl.tar.gz &
+        wget https://github.com/erebe/wstunnel/releases/download/v9.4.1/wstunnel_9.4.1_linux_amd64.tar.gz &
+        wget https://github.com/Fahrj/reverse-ssh/releases/download/v1.2.0/reverse-sshx64 &
+
+        wait
+
+        mkdir arm64
+        tar xf piping-server-aarch64-unknown-linux-musl.tar.gz
+        mv piping-server-aarch64-unknown-linux-musl/piping-server arm64/piping-server
+        tar xf wstunnel_9.4.1_linux_arm64.tar.gz
+        mv wstunnel arm64/wstunnel
+        mv reverse-ssh-armv8-x64 arm64/reverse-ssh
+        chmod u+x arm64/*
+
+        mkdir amd64
+        tar xf piping-server-x86_64-unknown-linux-musl.tar.gz
+        mv piping-server-x86_64-unknown-linux-musl/piping-server amd64/piping-server
+        tar xf wstunnel_9.4.1_linux_amd64.tar.gz 
+        mv wstunnel amd64/wstunnel
+        mv reverse-sshx64 amd64/reverse-ssh
+        chmod u+x amd64/*
+        find .
+
+        cd ..
+        docker buildx create --use
+        docker buildx build --platform=linux/amd64,linux/arm64 . -t ghcr.io/${{ github.repository_owner }}/pah:${GITHUB_REF##*/} --push
+  

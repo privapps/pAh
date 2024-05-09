@@ -1,0 +1,291 @@
+<html>
+
+<head>
+    <title>Encrypted Chat via Piping Server</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/css/picnic.min.css" rel="stylesheet">
+    <style>
+        body,
+        input,
+        button {
+            font-size: 15px;
+            padding: 10px;
+        }
+        
+        #talks {
+            padding: 5px;
+        }
+        
+        #talks span {
+            display: block;
+            margin: 5px;
+        }
+        
+        .me {
+            text-align: right;
+        }
+        
+        .other {
+            background-color: bisque;
+        }
+        
+        input[type="text"]:disabled {
+            background-color: #e2e2e2;
+            /* Light gray background color */
+            color: #555;
+            /* Dark gray text color */
+        }
+        
+        input[type="text"]::placeholder {
+            color: #aaa;
+        }
+        
+        a {
+            text-decoration: underline;
+        }
+    </style>
+    <script src="js/crypto-js.min.js"></script>
+    <script src="js/minizip-asm.min.js"></script>
+    <script src="js/cypher.js"></script>
+    <script src="js/zip-ext.js"></script>
+    <script src="js/piping-conf.js"></script>
+</head>
+
+<body>
+    <div class="flex">
+        <small>
+        Symmetric end to end encryption for chat using piping server</small>
+        <a href="./webrtc.html">Webrtc based</a> | <a href="./zip.html">Unzip / decrept</a>
+    </div>
+
+    <div class="flex three">
+        <div>
+            <input type="text" placeholder="Your ID. Any String" id='your_id'>
+        </div>
+        <div>
+            <input type="text" placeholder="Peer ID" id='peer_id'>
+        </div>
+        <div>
+            <input type="hidden" id='piping' />
+            <input type="text" placeholder="Secrets. has to match with your peer" id='html_secret'>
+        </div>
+    </div>
+    <div class="flex three">
+        <div>
+            <button onclick='receiveLoop(this)' id='btn' data-tooltip="Secrets has to match" class="tooltip-right">Connect</button>
+        </div>
+        <div>
+            <button onclick='switchFile()' id='button_file' class='warning' disabled>Transfer Files</button>
+        </div>
+    </div>
+
+    <div id="file_upload" class="flex one" style="display: none;background-color: #ffffef;">
+        <div class="flex three">
+            <div style="float: left;">
+                <label for="fileInput"><small>Multiple Files will be zipped and encrypted.</small><br/>
+            <input type="file" id="fileInput" multiple></label>
+            </div>
+            <div style="float: right;">
+                <label for="uploadButton"><small>Password is same as your chat secrets</small></label><br/>
+                <button id="uploadButton" style="width: 50%;" onclick="uploadFile()">Send</button>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" id="no_zip">
+                    <span class="checkable">No Zip</span>
+                  </label>
+            </div>
+        </div>
+        <div id="upload_progress" class="flex one">
+            <progress id="progressBar" value="0" max="100"></progress>
+        </div>
+    </div>
+
+
+    <div class="flex">
+        <div><input type="text" placeholder="Message. Enter to send" id='message'></div>
+    </div>
+    <div id='talks'>
+        <!--This will be added by JavaScript -->
+    </div>
+    <script>
+        let show_file = false
+            // let last_msg
+
+        function switchFile() {
+            show_file = !show_file
+            if (show_file) {
+                file_upload.style.display = 'inline-block'
+            } else {
+                file_upload.style.display = 'none'
+            }
+        }
+
+        async function load_file(file) {
+            return new Promise((resolve, reject) => {
+                let reader = new FileReader();
+
+                reader.onload = function(e) {
+                    // let binaryData = new Uint8Array();
+                    resolve(e.target.result);
+                };
+
+                reader.onerror = function(e) {
+                    reject(e.target.error);
+                };
+
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // let debug_file
+        async function uploadFile(file) {
+            uploadButton.disabled = true
+            var fileInput = document.getElementById('fileInput');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                return
+            }
+            let file_data
+            let file_name
+            var file = fileInput.files[0];
+            if (no_zip.checked) {
+                file_data = await load_file(file)
+                file_name = file.name
+            } else {
+                file_name = file.name + '.zip'
+                file_data = await compress_with_minizip_and_encrypt(fileInput.files, html_secret.value)
+            }
+            url = (await getUrl(`${your_id.value}`)).substring(0, 50) + '~f'
+            text = 'sending file: \n' + url;
+            send(text)
+            var postToPeer = new XMLHttpRequest();
+            postToPeer.open('POST', url, true);
+            postToPeer.setRequestHeader("Content-Type", "application/octet-stream");
+            postToPeer.setRequestHeader("Content-Disposition", `attachment; filename="${file_name}"`);
+
+
+            postToPeer.upload.addEventListener("progress", transferEvent => {
+                if (transferEvent.lengthComputable) {
+                    var percentComplete = (transferEvent.loaded / transferEvent.total * 100).toFixed(2);
+                    progressBar.value = percentComplete
+                }
+            });
+            postToPeer.upload.addEventListener("error", event => console.log("An error occurred while transferring the file.", event));
+
+            postToPeer.onreadystatechange = function() {
+                if (postToPeer.status == 200) {
+                    // todo
+                } else {
+                    addMyMessageSpan("Error occurred during file upload:" + postToPeer.responseText);
+                    console.error("Upload failed with status ", postToPeer.status, postToPeer.readyState);
+                }
+                uploadButton.disabled = false
+            }
+            postToPeer.send(file_data);
+        }
+
+        async function getUrl(str) {
+            return piping.value + 'jschat-' + await _sha256(str)
+        }
+        var check_url, post_url, cypher_key
+
+        message.disabled = true
+        var grr
+
+        function switchOp(flag) {
+            your_id.disabled = peer_id.disabled = btn.disabled = piping.disabled = html_secret.disabled = flag;
+            message.disabled = !flag
+            button_file.disabled = !flag
+        }
+
+        // Receive-loop
+        async function receiveLoop(btn) {
+            if (your_id.value === '' || peer_id.value === '' || html_secret.value === '') {
+                return
+            }
+
+            switchOp(true)
+            check_url = await getUrl(`${peer_id.value}-${your_id.value}`)
+            post_url = await getUrl(`${your_id.value}-${peer_id.value}`)
+
+            const currentDate = new Date()
+            const salt = `${currentDate.getUTCFullYear()}-${currentDate.getUTCMonth() + 1}-${currentDate.getUTCDate()}`
+            cypher_key = await _generateKeyFromSeed(html_secret.value, salt)
+            send(`** ${your_id.value} is ready **`)
+
+            while (true) {
+                try {
+                    // Get peer's response
+                    const res = await fetch(check_url);
+                    // Create talk element
+
+                    // Set peer's message
+                    const raw = await res.text();
+                    console.log('wtf', raw, cypher_key)
+                    const decryptedData = await _decrypt2Str(raw, cypher_key)
+                    addReceiveSpan(decryptedData)
+                } catch (err) {
+                    console.error(err);
+                    switchOp(false)
+                    break
+                }
+            }
+        }
+        async function addReceiveSpan(decryptedData) {
+            const talk = document.createElement('span');
+            talk.classList.add('other');
+
+            const regex0 = /^sending file: \n(.*~f$)/
+            const m = decryptedData.match(regex0)
+            if (m) {
+                const old = talk.innerHTML
+                talk.innerText = `${new Date().toLocaleTimeString()}\n`
+                talk.innerHTML = talk.innerHTML + `sending file:<a href="${m[1]}">${m[1]}</a>`
+            } else {
+                talk.innerText = `${new Date().toLocaleTimeString()}\n  ${decryptedData}`
+            }
+            // Add peer's message
+            talks.insertBefore(talk, talks.firstChild);
+        }
+
+        // Send your message
+        async function send(msg = message.value) {
+            if (msg === '') {
+                return
+            }
+            const data = await _encrypt2Str(msg, cypher_key)
+                // Send your message
+            fetch(post_url, {
+                'method': 'POST',
+                body: data //message.value
+            }).then(res => {
+                if (res.ok) {
+                    // Create talk element
+                    addMyMessageSpan(msg)
+                        // Empty your message
+                    message.value = '';
+                }
+            }).catch(err => console.error(err))
+
+        }
+        window.message.onkeyup = (ev) => {
+            if (ev.key === 'Enter') {
+                send()
+            }
+        }
+        async function addMyMessageSpan(msg) {
+            const talk = document.createElement('span');
+            talk.classList.add('me');
+            talk.innerText = `${new Date().toLocaleTimeString()}\n  ${msg}`
+            talks.insertBefore(talk, talks.firstChild);
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            // Pre-fill the input field when the page is ready
+            _sha256(new Date().getTime().toString()).then(k => html_secret.value = k.substring(5, 7))
+                // console.log(html_secret.value)
+        });
+        document.getElementById('piping').value = PIPING_URL;
+    </script>
+</body>
+<html>
