@@ -132,7 +132,7 @@ fileTransfer.onchange = function(e) {
         sendFileDom.name = file.name;
         sendFileDom.size = file.size;
         sendFileDom.type = file.type;
-        // sendFileDom.fileInfo = "areYouReady";
+        sendFileDom.fileInfo = "areYouReady";
         console.log(sendFileDom);
     } else {
         console.log('No file selected');
@@ -142,33 +142,10 @@ fileTransfer.onchange = function(e) {
 function sendFile() {
     if (!fileTransfer.value) return;
     var fileInfo = JSON.stringify(sendFileDom);
-    // _fileChannel.send(fileInfo);
-    sendFileChunked(fileInfo, _fileChannel);
+    _fileChannel.send(fileInfo);
+    // sendFileChunked(fileInfo, _fileChannel);
     console.log('file info sent');
 }
-
-var sendFileChunked = function(file, channel) {
-    var offset = 0;
-
-    // Function to handle reading and sending each chunk
-    var readAndSendChunk = function() {
-        var reader = new FileReader();
-        reader.onload = function(event) {
-            channel.send(event.target.result);
-            // If there is more data to read and send
-            if (offset < file.size) {
-                // Read the next chunk
-                readAndSendChunk();
-            }
-        };
-        var slice = file.slice(offset, offset + chunkSize);
-        reader.readAsArrayBuffer(slice);
-        offset += chunkSize;
-    };
-
-    // Start reading and sending the first chunk
-    readAndSendChunk();
-};
 
 
 function fileChannel(e) {
