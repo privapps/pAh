@@ -35,7 +35,7 @@ jobs:
         tar xf wstunnel_9.4.1_linux_arm64.tar.gz
         mv wstunnel arm64/wstunnel
         mv reverse-ssh-armv8-x64 arm64/reverse-ssh
-        chmod u+x arm64/*
+        chmod +x arm64/*
 
         mkdir amd64
         tar xf piping-server-x86_64-unknown-linux-musl.tar.gz
@@ -43,7 +43,7 @@ jobs:
         tar xf wstunnel_9.4.1_linux_amd64.tar.gz 
         mv wstunnel amd64/wstunnel
         mv reverse-sshx64 amd64/reverse-ssh
-        chmod u+x amd64/*
+        chmod +x amd64/*
         find .
 
         cd ..
